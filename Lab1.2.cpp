@@ -3,7 +3,7 @@
 #include <cstdlib>
 #include <ctime>
 #include <chrono>
-#include <thread> 
+#include <thread>
 
 using namespace std;
 using namespace std::chrono;
@@ -27,29 +27,24 @@ void mirrorRow(vector<vector<int>>& matrix, int i, int n)
     }
 }
 
-void mirrorRightHalfParallel(vector<vector<int>>& matrix, int n)
+void mirrorRightHalfParallel(vector<vector<int>>& matrix, int n, int numThreads)
 {
     vector<thread> threads;
     for (int i = 0; i < n; ++i)
     {
         threads.push_back(thread(mirrorRow, ref(matrix), i, n));
+
+        if (threads.size() >= numThreads)
+        {
+            for (auto& t : threads)
+                t.join();
+            threads.clear();
+        }
     }
 
     for (auto& t : threads)
     {
         t.join();
-    }
-}
-
-void printMatrix(const vector<vector<int>>& matrix, int n)
-{
-    for (int i = 0; i < n; ++i)
-    {
-        for (int j = 0; j < n; ++j)
-        {
-            cout << matrix[i][j] << " ";
-        }
-        cout << endl;
     }
 }
 
@@ -60,24 +55,25 @@ int main()
     int n = 6;  
     vector<vector<int>> matrix(n, vector<int>(n));
 
-    auto start = high_resolution_clock::now();
+    unsigned int logicalCores = thread::hardware_concurrency();
+    unsigned int physicalCores = logicalCores / 2; 
 
-    fillMatrix(matrix, n);
+    cout << "Logical cores: " << logicalCores << endl;
+    cout << "Physical cores: " << physicalCores << endl;
 
-    cout << "Matrix before modification:" << endl;
-    printMatrix(matrix, n);
+    for (unsigned int numThreads : {physicalCores / 2, physicalCores, logicalCores, 2 * logicalCores, 4 * logicalCores, 8 * logicalCores, 16 * logicalCores})
+    {
+        auto start = high_resolution_clock::now();
 
-    mirrorRightHalfParallel(matrix, n);
+        fillMatrix(matrix, n);
+        mirrorRightHalfParallel(matrix, n, numThreads);
 
-    auto end = high_resolution_clock::now();
-    auto duration = duration_cast<nanoseconds>(end - start).count();
-    double seconds = duration * 1e-9;
+        auto end = high_resolution_clock::now();
+        auto duration = duration_cast<nanoseconds>(end - start).count();
+        double seconds = duration * 1e-9;
 
-    cout << "\nModified matrix:" << endl;
-    printMatrix(matrix, n);
-
-    cout << "\nWork time with parallelization: " << fixed << seconds << " seconds" << endl;
+        cout << "Threads: " << numThreads << " - Time: " << fixed << seconds << " seconds" << endl;
+    }
 
     return 0;
 }
-
